@@ -1,0 +1,165 @@
+using BepInEx;
+using BepInEx.Logging;
+using HarmonyLib;
+using System.Collections;
+using System.Linq;
+using System.Reflection;
+using TeamCherry.Localization;
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace Silksong.ReturnToBench;
+
+[HarmonyPatch]
+[BepInAutoPlugin(id: "silksong.returntobench", name: "Return to Bench")]
+public partial class ReturnToBenchPlugin : BaseUnityPlugin {
+    private static ReturnToBenchPlugin instance;
+    private static ManualLogSource logger;
+    private static GameObject? returnButton;
+    private static MenuButtonList.Entry? entry;
+    private static bool returningToBench;
+    private const string PAUSE_BENCH = "PAUSE_BENCH";
+
+    private Harmony harmony;
+
+    private void Awake() {
+        instance = this;
+        logger = Logger;
+        harmony = Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly());
+    }
+
+    private void OnDestroy() {
+        harmony.UnpatchSelf();
+        if (returnButton) {
+            Destroy(returnButton);
+        }
+
+        if (entry != null && UIManager._instance) {
+            var menuButtonList = UIManager._instance.pauseMenuScreen.GetComponent<MenuButtonList>();
+            var entries = menuButtonList.entries.ToList();
+            entries.Remove(entry);
+            menuButtonList.entries = entries.ToArray();
+        }
+    }
+
+    private void Update() {
+        if (!returnButton) {
+            CreateReturnButton();
+        }
+    }
+
+    private static void CreateReturnButton() {
+        if (returnButton) {
+            return;
+        }
+
+        var uiManager = UIManager._instance;
+        if (!uiManager) {
+            return;
+        }
+
+        var controls = uiManager.pauseMenuScreen.transform.FindRelativeTransformWithPath("Container/Controls", false);
+        if (!controls) {
+            return;
+        }
+
+        var continueButton = controls.Find("ContinueButton");
+        if (!continueButton) {
+            return;
+        }
+
+        var exitButton = controls.Find("ExitButton");
+        if (!exitButton) {
+            return;
+        }
+
+        returnButton = Instantiate(continueButton.gameObject, continueButton.parent);
+        returnButton.name = "ReturnToBenchButton";
+        returnButton.transform.SetSiblingIndex(exitButton.GetSiblingIndex());
+        exitButton.transform.SetSiblingIndex(exitButton.GetSiblingIndex() + 1);
+
+        var pauseMenuButton = returnButton.GetComponent<PauseMenuButton>();
+        var menuButtonList = uiManager.pauseMenuScreen.GetComponent<MenuButtonList>();
+        entry = new MenuButtonList.Entry {
+            selectable = pauseMenuButton
+        };
+        var entries = menuButtonList.entries.ToList();
+        entries.Insert(entries.Count - 1, entry);
+        menuButtonList.entries = entries.ToArray();
+
+        var autoLocalizeTextUI = returnButton.GetComponentInChildren<AutoLocalizeTextUI>();
+        autoLocalizeTextUI.TextKey = PAUSE_BENCH;
+    }
+    
+    [HarmonyPatch(typeof(Language), nameof(Language.SwitchLanguage), typeof(LanguageCode))]
+    [HarmonyPostfix]
+    private static void LanguageSwitchLanguage(LanguageCode code, bool __result) {
+        if (__result) {
+            Language._currentEntrySheets["MainMenu"][PAUSE_BENCH] = code == LanguageCode.ZH ? "返回长椅" : "RETURN TO BENCH";
+        }
+    }
+
+    [HarmonyPatch(typeof(PauseMenuButton), nameof(PauseMenuButton.OnSubmit))]
+    [HarmonyPostfix]
+    private static void PauseMenuButtonOnSubmit(PauseMenuButton __instance) {
+        if (__instance.gameObject == returnButton && __instance.interactable && __instance.ih.PauseAllowed &&
+            !UIManager.instance.ignoreUnpause) {
+            returningToBench = true;
+        } else {
+            returningToBench = false;
+        }
+    }
+    
+    [HarmonyPatch(typeof(HeroController), nameof(HeroController.CanTakeDamage))]
+    [HarmonyPostfix]
+    private static void HeroControllerCanTakeDamage(ref bool __result) {
+        if (returningToBench) {
+            __result = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(GameManager), nameof(GameManager.PauseGameToggleByMenu))]
+    [HarmonyPostfix]
+    private static IEnumerator GameManagerPauseGameToggleByMenu(IEnumerator __result, GameManager __instance) {
+        while (__result.MoveNext()) {
+            yield return __result.Current;
+        }
+
+        if (returningToBench) {
+            StopAllSceneMusic();
+            __instance.needFirstFadeIn = true;
+            __instance.ReadyForRespawn(isFirstLevelForPlayer: false);
+        }
+    }
+
+    [HarmonyPatch(typeof(HeroController), nameof(HeroController.FinishedEnteringScene))]
+    [HarmonyPostfix]
+    private static void HeroControllerFinishedEnteringScene(HeroController __instance) {
+        if (returningToBench) {
+            returningToBench = false;
+            __instance.proxyFSM.SendEvent("HeroCtrl-EnteringScene");
+        }
+    }
+
+    private static void StopAllSceneMusic() {
+        GameManager gameManager = GameManager.instance;
+        gameManager.AudioManager.StopAndClearMusic();
+        gameManager.AudioManager.StopAndClearAtmos();
+        Transform transform = gameManager.AudioManager.transform.Find("Music");
+        if (transform == null) {
+            return;
+        }
+
+        PlayMakerFSM? restArea = transform.Find("RestArea")?.GetComponent<PlayMakerFSM>();
+        if (restArea != null) {
+            restArea.fsm.Finished = false;
+            restArea.SendEventSafe("REST AREA MUSIC STOP FAST");
+        }
+
+        PlayMakerFSM? fleaCaravan = transform.Find("FleaCaravan")?.GetComponent<PlayMakerFSM>();
+        if (fleaCaravan != null) {
+            fleaCaravan.fsm.Finished = false;
+            fleaCaravan.SendEventSafe("FLEA MUSIC STOP FAST");
+        }
+    }
+}
