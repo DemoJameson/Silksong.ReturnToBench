@@ -57,10 +57,6 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
     }
 
     private static void CreateReturnButton() {
-        if (returnButton) {
-            return;
-        }
-
         var pauseMenuScreen = UIManager._instance?.pauseMenuScreen;
         if (!pauseMenuScreen) {
             return;
@@ -72,6 +68,8 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
         if (!continueButton || !exitButton) {
             return;
         }
+
+        LanguageSwitchLanguage(Language._currentLanguage);
 
         returnButton = Instantiate(continueButton.gameObject, continueButton.parent);
         returnButton.name = "ReturnToBenchButton";
@@ -95,13 +93,9 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
     // [HarmonyPatch(typeof(Language), nameof(Language.SwitchLanguage), typeof(LanguageCode))]
     // [HarmonyPostfix]
     // 在 Start 中手动 Hook，否则启动报错
-    private static void LanguageSwitchLanguage(LanguageCode code, bool __result) {
-        if (!__result) {
-            return;
-        }
-
+    private static void LanguageSwitchLanguage(LanguageCode code) {
         var currentEntrySheets = Language._currentEntrySheets;
-        currentEntrySheets.TryAdd(Id, new Dictionary<string, string> {
+        currentEntrySheets?.TryAdd(Id, new Dictionary<string, string> {
             { PAUSE_BENCH, code == LanguageCode.ZH ? "返回长椅" : "RETURN TO BENCH" }
         });
     }
@@ -149,22 +143,22 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
     }
 
     private static void StopAllSceneMusic() {
-        GameManager gameManager = GameManager.instance;
+        var gameManager = GameManager.instance;
         gameManager.AudioManager.StopAndClearMusic();
         gameManager.AudioManager.StopAndClearAtmos();
-        Transform transform = gameManager.AudioManager.transform.Find("Music");
-        if (transform == null) {
+        var transform = gameManager.AudioManager.transform.Find("Music");
+        if (!transform) {
             return;
         }
 
-        PlayMakerFSM? restArea = transform.Find("RestArea")?.GetComponent<PlayMakerFSM>();
-        if (restArea != null) {
+        var restArea = transform.Find("RestArea")?.GetComponent<PlayMakerFSM>();
+        if (restArea) {
             restArea.fsm.Finished = false;
             restArea.SendEventSafe("REST AREA MUSIC STOP FAST");
         }
 
-        PlayMakerFSM? fleaCaravan = transform.Find("FleaCaravan")?.GetComponent<PlayMakerFSM>();
-        if (fleaCaravan != null) {
+        var fleaCaravan = transform.Find("FleaCaravan")?.GetComponent<PlayMakerFSM>();
+        if (fleaCaravan) {
             fleaCaravan.fsm.Finished = false;
             fleaCaravan.SendEventSafe("FLEA MUSIC STOP FAST");
         }
