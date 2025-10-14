@@ -2,6 +2,7 @@ using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using TeamCherry.Localization;
@@ -60,23 +61,15 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
             return;
         }
 
-        var uiManager = UIManager._instance;
-        if (!uiManager) {
+        var pauseMenuScreen = UIManager._instance?.pauseMenuScreen;
+        if (!pauseMenuScreen) {
             return;
         }
 
-        var controls = uiManager.pauseMenuScreen.transform.FindRelativeTransformWithPath("Container/Controls", false);
-        if (!controls) {
-            return;
-        }
-
-        var continueButton = controls.Find("ContinueButton");
-        if (!continueButton) {
-            return;
-        }
-
-        var exitButton = controls.Find("ExitButton");
-        if (!exitButton) {
+        var controls = pauseMenuScreen.transform.Find("Container/Controls");
+        var continueButton = controls?.Find("ContinueButton");
+        var exitButton = controls?.Find("ExitButton");
+        if (!continueButton || !exitButton) {
             return;
         }
 
@@ -86,7 +79,7 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
         exitButton.transform.SetSiblingIndex(exitButton.GetSiblingIndex() + 1);
 
         var pauseMenuButton = returnButton.GetComponent<PauseMenuButton>();
-        var menuButtonList = uiManager.pauseMenuScreen.GetComponent<MenuButtonList>();
+        var menuButtonList = pauseMenuScreen.GetComponent<MenuButtonList>();
         entry = new MenuButtonList.Entry {
             selectable = pauseMenuButton
         };
@@ -95,6 +88,7 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
         menuButtonList.entries = entries.ToArray();
 
         var autoLocalizeTextUI = returnButton.GetComponentInChildren<AutoLocalizeTextUI>();
+        autoLocalizeTextUI.TextSheet = Id;
         autoLocalizeTextUI.TextKey = PAUSE_BENCH;
     }
 
@@ -102,10 +96,14 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
     // [HarmonyPostfix]
     // 在 Start 中手动 Hook，否则启动报错
     private static void LanguageSwitchLanguage(LanguageCode code, bool __result) {
-        if (__result) {
-            Language._currentEntrySheets["MainMenu"][PAUSE_BENCH] =
-                code == LanguageCode.ZH ? "返回长椅" : "RETURN TO BENCH";
+        if (!__result) {
+            return;
         }
+
+        var currentEntrySheets = Language._currentEntrySheets;
+        currentEntrySheets.TryAdd(Id, new Dictionary<string, string> {
+            { PAUSE_BENCH, code == LanguageCode.ZH ? "返回长椅" : "RETURN TO BENCH" }
+        });
     }
 
     [HarmonyPatch(typeof(PauseMenuButton), nameof(PauseMenuButton.OnSubmit))]
