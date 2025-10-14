@@ -28,6 +28,13 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
         harmony = Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly());
     }
 
+    private void Start() {
+        MethodInfo original =
+            AccessTools.Method(typeof(Language), nameof(Language.SwitchLanguage), [typeof(LanguageCode)]);
+        HarmonyMethod postfix = new HarmonyMethod(typeof(ReturnToBenchPlugin), nameof(LanguageSwitchLanguage));
+        harmony.Patch(original, postfix: postfix);
+    }
+
     private void OnDestroy() {
         harmony.UnpatchSelf();
         if (returnButton) {
@@ -90,12 +97,14 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
         var autoLocalizeTextUI = returnButton.GetComponentInChildren<AutoLocalizeTextUI>();
         autoLocalizeTextUI.TextKey = PAUSE_BENCH;
     }
-    
-    [HarmonyPatch(typeof(Language), nameof(Language.SwitchLanguage), typeof(LanguageCode))]
-    [HarmonyPostfix]
+
+    // [HarmonyPatch(typeof(Language), nameof(Language.SwitchLanguage), typeof(LanguageCode))]
+    // [HarmonyPostfix]
+    // 在 Start 中手动 Hook，否则启动报错
     private static void LanguageSwitchLanguage(LanguageCode code, bool __result) {
         if (__result) {
-            Language._currentEntrySheets["MainMenu"][PAUSE_BENCH] = code == LanguageCode.ZH ? "返回长椅" : "RETURN TO BENCH";
+            Language._currentEntrySheets["MainMenu"][PAUSE_BENCH] =
+                code == LanguageCode.ZH ? "返回长椅" : "RETURN TO BENCH";
         }
     }
 
@@ -109,7 +118,7 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
             returningToBench = false;
         }
     }
-    
+
     [HarmonyPatch(typeof(HeroController), nameof(HeroController.CanTakeDamage))]
     [HarmonyPostfix]
     private static void HeroControllerCanTakeDamage(ref bool __result) {
