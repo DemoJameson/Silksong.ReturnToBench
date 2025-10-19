@@ -96,7 +96,7 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
     private static void LanguageSwitchLanguage(LanguageCode code) {
         var currentEntrySheets = Language._currentEntrySheets;
         currentEntrySheets?.TryAdd(Id, new Dictionary<string, string> {
-            { PAUSE_BENCH, code == LanguageCode.ZH ? "返回长椅" : "RETURN TO BENCH" }
+            { PAUSE_BENCH, code == LanguageCode.ZH ? "返回长椅" : "Return to Bench" }
         });
     }
 
