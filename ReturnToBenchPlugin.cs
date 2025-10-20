@@ -14,14 +14,14 @@ namespace Silksong.ReturnToBench;
 [HarmonyPatch]
 [BepInAutoPlugin(id: "silksong.returntobench", name: "Return to Bench")]
 public partial class ReturnToBenchPlugin : BaseUnityPlugin {
-    private static ReturnToBenchPlugin instance;
-    private static ManualLogSource logger;
+    private static ReturnToBenchPlugin instance = null!;
+    private static ManualLogSource logger = null!;
     private static GameObject? returnButton;
     private static MenuButtonList.Entry? entry;
     private static bool returningToBench;
     private const string PAUSE_BENCH = "PAUSE_BENCH";
 
-    private Harmony harmony;
+    private Harmony harmony = null!;
 
     private void Awake() {
         instance = this;
@@ -53,6 +53,11 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
     private void Update() {
         if (!returnButton) {
             CreateReturnButton();
+        }
+        
+        // 如果真的出现问题，通过回到首页重置该变量
+        if (returningToBench && GameManager._instance && GameManager._instance.sceneName == "Menu_Title") {
+            returningToBench = false;
         }
     }
 
@@ -128,6 +133,8 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
 
         if (returningToBench) {
             StopAllSceneMusic();
+            // 避免在蛆池中传送后灵丝UI异常
+            HeroController.instance.col2d.enabled = false;
             __instance.needFirstFadeIn = true;
             __instance.ReadyForRespawn(isFirstLevelForPlayer: false);
         }
@@ -138,6 +145,8 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
     private static void HeroControllerFinishedEnteringScene(HeroController __instance) {
         if (returningToBench) {
             returningToBench = false;
+            __instance.col2d.enabled = true;
+            __instance.SetIsMaggoted(false);
             __instance.proxyFSM.SendEvent("HeroCtrl-EnteringScene");
         }
     }
