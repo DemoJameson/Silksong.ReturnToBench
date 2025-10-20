@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.4
+* fix: return to the bench did not clear the infection
+* fix: when returning to the bench in the infested water, the silk UI is abnormal
+
 ## 1.0.3
 * feat: option text changed from 'RETURN TO BENCH' to 'Return to Bench'
 
