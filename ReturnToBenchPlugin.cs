@@ -21,7 +21,7 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
     private static bool returningToBench;
     private const string PAUSE_BENCH = "PAUSE_BENCH";
 
-    private Harmony harmony = null!;
+    private Harmony? harmony;
 
     private void Awake() {
         instance = this;
@@ -33,11 +33,11 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
         MethodInfo original =
             AccessTools.Method(typeof(Language), nameof(Language.SwitchLanguage), [typeof(LanguageCode)]);
         HarmonyMethod postfix = new HarmonyMethod(typeof(ReturnToBenchPlugin), nameof(LanguageSwitchLanguage));
-        harmony.Patch(original, postfix: postfix);
+        harmony?.Patch(original, postfix: postfix);
     }
 
     private void OnDestroy() {
-        harmony.UnpatchSelf();
+        harmony?.UnpatchSelf();
         if (returnButton) {
             Destroy(returnButton);
         }
@@ -133,8 +133,8 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
 
         if (returningToBench) {
             StopAllSceneMusic();
-            // 避免在蛆池中传送后灵丝UI异常
-            HeroController.instance.col2d.enabled = false;
+            // 避免在蛆池中传送后灵丝UI异常；heroController.Respawn()方法会清除蛆虫状态
+            HeroController.instance.cState.dead = true;
             __instance.needFirstFadeIn = true;
             __instance.ReadyForRespawn(isFirstLevelForPlayer: false);
         }
@@ -145,8 +145,6 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
     private static void HeroControllerFinishedEnteringScene(HeroController __instance) {
         if (returningToBench) {
             returningToBench = false;
-            __instance.col2d.enabled = true;
-            __instance.SetIsMaggoted(false);
             __instance.proxyFSM.SendEvent("HeroCtrl-EnteringScene");
         }
     }
