@@ -1,6 +1,6 @@
 {
 	"name":"Return_to_Bench",
-	"version_number":"1.0.4",
+	"version_number":"1.0.5",
 	"website_url": "https://github.com/DemoJameson/Silksong.ReturnToBench",
 	"description":"Add a menu option to return to the bench",
 	"dependencies": ["BepInEx-BepInExPack_Silksong-5.4.2304"]
