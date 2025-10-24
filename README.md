@@ -22,6 +22,3 @@ After unzipping, run the game once, so that the BepInEx folder structure generat
 
 Then pull this DLL, or folder including the dll in to 
 `Hollow Knight Silksong\BepInEx\plugins`
-
-## Credits
-* Referenced some code about teleportation from [Bonfire Teleport](https://www.nexusmods.com/hollowknightsilksong/mods/156)
