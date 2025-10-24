@@ -7,12 +7,13 @@ using System.Linq;
 using System.Reflection;
 using TeamCherry.Localization;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace Silksong.ReturnToBench;
 
 [HarmonyPatch]
-[BepInAutoPlugin(id: "silksong.returntobench", name: "Return to Bench")]
+[BepInAutoPlugin(id: "com.demojameson.silksong.returntobench", name: "Return to Bench")]
 public partial class ReturnToBenchPlugin : BaseUnityPlugin {
     private static ReturnToBenchPlugin instance = null!;
     private static ManualLogSource logger = null!;
@@ -27,6 +28,7 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
         instance = this;
         logger = Logger;
         harmony = Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly());
+        SceneManager.activeSceneChanged += OnActiveSceneChanged;
     }
 
     private void Start() {
@@ -34,9 +36,12 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
             AccessTools.Method(typeof(Language), nameof(Language.SwitchLanguage), [typeof(LanguageCode)]);
         HarmonyMethod postfix = new HarmonyMethod(typeof(ReturnToBenchPlugin), nameof(LanguageSwitchLanguage));
         harmony?.Patch(original, postfix: postfix);
+        LanguageSwitchLanguage(Language._currentLanguage);
     }
 
     private void OnDestroy() {
+        SceneManager.activeSceneChanged -= OnActiveSceneChanged;
+
         harmony?.UnpatchSelf();
         if (returnButton) {
             Destroy(returnButton);
@@ -54,9 +59,11 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
         if (!returnButton) {
             CreateReturnButton();
         }
-        
-        // 如果真的出现问题，通过回到首页重置该变量
-        if (returningToBench && GameManager._instance && GameManager._instance.sceneName == "Menu_Title") {
+    }
+
+    private void OnActiveSceneChanged(Scene prev, Scene current) {
+        // 如果因为未知原因导致传送中断，通过回到首页重置该变量
+        if (returningToBench && current.name == "Menu_Title") {
             returningToBench = false;
         }
     }
@@ -73,8 +80,6 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
         if (!continueButton || !exitButton) {
             return;
         }
-
-        LanguageSwitchLanguage(Language._currentLanguage);
 
         returnButton = Instantiate(continueButton.gameObject, continueButton.parent);
         returnButton.name = "ReturnToBenchButton";
@@ -117,6 +122,7 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
     }
 
     [HarmonyPatch(typeof(HeroController), nameof(HeroController.CanTakeDamage))]
+    [HarmonyPatch(typeof(HeroController), nameof(HeroController.CanTakeDamageIgnoreInvul))]
     [HarmonyPostfix]
     private static void HeroControllerCanTakeDamage(ref bool __result) {
         if (returningToBench) {
@@ -127,16 +133,34 @@ public partial class ReturnToBenchPlugin : BaseUnityPlugin {
     [HarmonyPatch(typeof(GameManager), nameof(GameManager.PauseGameToggleByMenu))]
     [HarmonyPostfix]
     private static IEnumerator GameManagerPauseGameToggleByMenu(IEnumerator __result, GameManager __instance) {
+        var heroController = HeroController.instance;
+        bool origAcceptingInput = heroController.acceptingInput;
+        bool origDead = heroController.cState.dead;
+
         while (__result.MoveNext()) {
+            if (returningToBench) {
+                heroController.acceptingInput = false;
+                // 避免在蛆池中传送后灵丝UI异常；heroController.Respawn()方法会清除蛆虫状态
+                // 并且heroController.FixedUpdate()中使hero速度为0
+                heroController.cState.dead = true;
+            }
             yield return __result.Current;
         }
 
         if (returningToBench) {
+            if (__instance.IsInSceneTransition || __instance.IsLoadingSceneTransition) {
+                heroController.acceptingInput = origAcceptingInput;
+                heroController.cState.dead = origDead;
+                returningToBench = false;
+                yield break;
+            }
+
             StopAllSceneMusic();
-            // 避免在蛆池中传送后灵丝UI异常；heroController.Respawn()方法会清除蛆虫状态
-            HeroController.instance.cState.dead = true;
+            MazeController.ResetSaveData();
+            __instance.ResetSemiPersistentItems();
+            __instance.TimePasses();
+            __instance.ReadyForRespawn(false);
             __instance.needFirstFadeIn = true;
-            __instance.ReadyForRespawn(isFirstLevelForPlayer: false);
         }
     }
 

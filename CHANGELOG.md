@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.6
+* fix: soft lock due to going through a transition before it takes you back to the bench
+
 ## 1.0.5
 * fix: return to the bench did not clear the infection
 * fix: when returning to the bench in the infested water, the silk UI is abnormal
